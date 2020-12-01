@@ -21,7 +21,9 @@ public:
     bool delete_order(uint64_t id);
     bool modify_order(uint64_t id, uint64_t quantity, uint64_t max_buy, uint64_t max_sell);
 
-    void test_print() const;
+    int buy_side() const { return buy_side_; }
+    int sell_side() const { return sell_side_; }
+
     using OrderMap = std::unordered_map<uint64_t, Order>;
     const OrderMap & trades() { return trade_orders_; }
     const OrderMap & buys() { return buy_orders_; }

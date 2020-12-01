@@ -92,7 +92,7 @@ TEST(orderstore, new_order_max_exceeded)
 
     auto response = store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
     ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
-    ASSERT_TRUE(store.instruments().empty());
+    ASSERT_TRUE(store.instruments().find(listingId)->second.sells().empty());
 }
 
 TEST(orderstore, delete_order)
@@ -149,27 +149,28 @@ TEST(orderstore, modify_order)
     auto store = Fixture();
     uint64_t listingId = 2;
     uint64_t order_id_1 = 11;
-    uint64_t orderQuantity = 6;
+    uint64_t orderQuantity = static_cast<int>(Fixture::MAX_SELL / 2);
     uint64_t orderPrice = 12000;
     char side = 'S';
     store.consume(store.makeNewOrder(listingId, order_id_1, orderQuantity, orderPrice, side));
 
     auto order_id_2 = 12;
-    orderQuantity = 7;
-    side = 'B';
+    orderQuantity = 1;
     store.consume(store.makeNewOrder(listingId, order_id_2, orderQuantity, orderPrice, side));
 
-    // check that exceeding threshold does not affect the store state
-    uint64_t new_orderQuantity = Fixture::MAX_BUY + 2;
-    auto response = store.consume(store.makeModifyOrder(order_id_2, new_orderQuantity));
-    auto current_qty = store.instruments().find(listingId)->second.buys().find(order_id_2)->second.quantity;
-    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
-    ASSERT_EQ(current_qty, orderQuantity);
-
     // check that correct value takes effect
-    new_orderQuantity = Fixture::MAX_BUY - 2;
-    response = store.consume(store.makeModifyOrder(order_id_2, new_orderQuantity));
-    current_qty = store.instruments().find(listingId)->second.buys().find(order_id_2)->second.quantity;
+    auto order_qty_1 = static_cast<int>(Fixture::MAX_SELL / 2) - 1;
+    auto response = store.consume(store.makeModifyOrder(order_id_2, order_qty_1));
+    auto current_qty = store.instruments().find(listingId)->second.sells().find(order_id_2)->second.quantity;
     ASSERT_EQ(response, OrderStore::OrderResponse::ACCEPT);
-    ASSERT_EQ(current_qty, new_orderQuantity);
+    ASSERT_EQ(current_qty, order_qty_1);
+
+    // check that exceeding threshold does not affect the store state
+    auto order_qty_2 = static_cast<int>(Fixture::MAX_SELL / 2) + 1;
+    response = store.consume(store.makeModifyOrder(order_id_2, order_qty_2));
+    current_qty = store.instruments().find(listingId)->second.sells().find(order_id_2)->second.quantity;
+    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
+    ASSERT_EQ(current_qty, order_qty_1);
+
+
 }

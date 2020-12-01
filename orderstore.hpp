@@ -25,6 +25,10 @@ protected:
 private:
     static const uint8_t PROTOCOL_VERSION = 1;
 
+    OrderResponse handle_add(Messages::NewOrder && payload);
+    OrderResponse handle_delete(Messages::DeleteOrder && payload);
+    OrderResponse handle_modify(Messages::ModifyOrderQuantity && payload);
+
     IntrumentMap instruments_;
     int max_buy_;
     int max_sell_;

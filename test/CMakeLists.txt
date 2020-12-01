@@ -29,7 +29,10 @@ add_subdirectory(
         ${CMAKE_CURRENT_BINARY_DIR}/googletest-build
         EXCLUDE_FROM_ALL
 )
-add_executable(test orderstore.cpp)
+add_executable(test
+        financialinstrument.cpp
+        orderstore.cpp
+)
 target_link_libraries(test libflow gmock_main)
 
 gtest_discover_tests(test)

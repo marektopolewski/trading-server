@@ -22,49 +22,9 @@ auto OrderStore::consume(Message && message) -> OrderResponse
 
     auto response = OrderResponse::NA;
     std::visit(overload{
-
-        [&](Messages::NewOrder arg) {
-            if ((arg.side == 'B' && arg.orderQuantity >= max_buy_) ||
-                (arg.side == 'S' && arg.orderQuantity >= max_sell_)) {
-                response = OrderResponse::REJECT;
-                return;
-            }
-            auto & instrument = instruments_[arg.listingId];
-            if (arg.side == 'B')
-                instrument.add_buy({arg.orderId, arg.orderQuantity, arg.orderPrice});
-            else if (arg.side == 'S')
-                instrument.add_sell({arg.orderId, arg.orderQuantity, arg.orderPrice});
-            response = OrderResponse::ACCEPT;
-        },
-
-        [&](Messages::DeleteOrder arg) {
-            for (auto & instrument : instruments_) {
-                if (instrument.second.delete_order(arg.orderId)) {
-                    response = OrderResponse::ACCEPT;
-                    return;
-                }
-            }
-            response = OrderResponse::REJECT;
-        },
-
-        [&](Messages::ModifyOrderQuantity arg) {
-            if (arg.newQuantity == 0) {
-                response = OrderResponse::REJECT;
-                return;
-            }
-            try {
-                for (auto &instrument : instruments_) {
-                    if (instrument.second.modify_order(arg.orderId, arg.newQuantity, max_buy_, max_sell_)) {
-                        response = OrderResponse::ACCEPT;
-                        return;
-                    }
-                }
-            }
-            // logic error is thrown when the quantity threshold is exceeded
-            catch (const std::logic_error & err) {}
-            response = OrderResponse::REJECT;
-        },
-
+        [&](Messages::NewOrder payload) { response = handle_add(std::move(payload)); },
+        [&](Messages::DeleteOrder payload) { response = handle_delete(std::move(payload)); },
+        [&](Messages::ModifyOrderQuantity payload) { response = handle_modify(std::move(payload)); },
         [](auto arg) { throw std::runtime_error("Unsupported message type"); }
 
     }, message.payload);
@@ -72,4 +32,47 @@ auto OrderStore::consume(Message && message) -> OrderResponse
     return response;
 }
 
+auto OrderStore::handle_add(Messages::NewOrder && payload) -> OrderResponse
+{
+    auto & instrument = instruments_[payload.listingId];
+
+    if (payload.side == 'B') {
+        if (payload.orderQuantity + instrument.buy_side() >= max_buy_)
+            return OrderResponse::REJECT;
+        instrument.add_buy({payload.orderId, payload.orderQuantity, payload.orderPrice});
+    }
+
+    else if (payload.side == 'S') {
+        if (payload.orderQuantity + instrument.sell_side() >= max_sell_)
+            return OrderResponse::REJECT;
+        instrument.add_sell({payload.orderId, payload.orderQuantity, payload.orderPrice});
+    }
+
+    return OrderResponse::ACCEPT;
+}
+
+auto OrderStore::handle_delete(Messages::DeleteOrder && payload) -> OrderResponse
+{
+    for (auto &instrument : instruments_) {
+        if (instrument.second.delete_order(payload.orderId))
+            return OrderResponse::ACCEPT;
+    }
+    return OrderResponse::REJECT;
+}
+
+auto OrderStore::handle_modify(Messages::ModifyOrderQuantity && payload) -> OrderResponse
+{
+    if (payload.newQuantity == 0)
+        return OrderResponse::REJECT;
+
+    try {
+        for (auto &instrument : instruments_) {
+            if (instrument.second.modify_order(payload.orderId, payload.newQuantity, max_buy_, max_sell_))
+                return OrderResponse::ACCEPT;
+        }
+    }
+    catch (const std::logic_error &) { /* threshold exceeded */ }
+
+    return OrderResponse::REJECT;
+}
 

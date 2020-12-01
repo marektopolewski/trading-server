@@ -12,6 +12,7 @@ namespace
 
 void FinancialInstrument::add_buy(Order && order)
 {
+
     buy_orders_[order.id] = order;
     update_buy();
 }
@@ -51,7 +52,8 @@ bool FinancialInstrument::modify_order(uint64_t id, uint64_t quantity, uint64_t 
 {
     auto buy_order = buy_orders_.find(id);
     if (buy_order != buy_orders_.end()) {
-        if (quantity >= max_buy)
+        auto dq = quantity - buy_orders_[id].quantity;
+        if (dq + buy_side_ >= max_buy)
             throw std::logic_error("Exceeded max buy quantity threshold");
         buy_orders_[id].quantity = quantity;
         update_buy();
@@ -60,7 +62,8 @@ bool FinancialInstrument::modify_order(uint64_t id, uint64_t quantity, uint64_t 
 
     auto sell_order = sell_orders_.find(id);
     if (sell_order != sell_orders_.end()) {
-        if (quantity >= sell_qty_)
+        auto dq = quantity - sell_orders_[id].quantity;
+        if (dq + sell_side_ >= max_sell)
             throw std::logic_error("Exceeded max sell quantity threshold");
         sell_orders_[id].quantity = quantity;
         update_sell();
@@ -87,11 +90,3 @@ void FinancialInstrument::update_trade()
     net_pos_ = std::accumulate(trade_orders_.cbegin(), trade_orders_.cend(), 0, SUM_FUNC);
 }
 
-void FinancialInstrument::test_print() const
-{
-    std::cout << "    " << "net_pos" << "   : " << net_pos_ << "\n";
-    std::cout << "    " << "buy_qty" << "   : " << buy_qty_ << "\n";
-    std::cout << "    " << "sell_qty" << "  : " << sell_qty_ << "\n";
-    std::cout << "    " << "buy_side" << "  : " << buy_side_ << "\n";
-    std::cout << "    " << "sell_side" << " : " << sell_side_ << "\n";
-}
