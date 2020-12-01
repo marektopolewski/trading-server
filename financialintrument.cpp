@@ -1,32 +1,60 @@
 #include "financialintrument.hpp"
 
-#include <iostream>
 #include <numeric>
 
 namespace
 {
-    auto SUM_FUNC = [](const int acc, const std::pair<uint64_t, FinancialInstrument::Order> it) {
+    auto SUM_FUNC = [](const int acc, const std::pair<uint64_t, FinancialInstrument::Order> & it) {
         return acc + it.second.quantity;
     };
 } // unnamed namespace
 
-void FinancialInstrument::add_buy(Order && order)
+void FinancialInstrument::add_buy(Order && order, uint64_t max_buy)
 {
-
     buy_orders_[order.id] = order;
     update_buy();
+    if (buy_side_ >= max_buy) {
+        buy_orders_.erase(order.id);
+        update_buy();
+        throw std::logic_error("Exceeded max buy quantity threshold");
+    }
 }
 
-void FinancialInstrument::add_sell(Order && order)
+void FinancialInstrument::add_sell(Order && order, uint64_t max_sell)
 {
     sell_orders_[order.id] = order;
     update_sell();
+    if (sell_side_ >= max_sell) {
+        sell_orders_.erase(order.id);
+        update_sell();
+        throw std::logic_error("Exceeded max sell quantity threshold");
+    }
 }
 
-void FinancialInstrument::add_trade(Order && order)
+void FinancialInstrument::add_trade(Order && order, uint64_t max_buy, uint64_t max_sell)
 {
+    if (strict_) {
+        if (order.quantity > 0) {
+            auto buy_match = std::find_if(buy_orders_.begin(), buy_orders_.end(), [order](const auto &it) {
+                return order == it.second;
+            });
+            if (buy_match == buy_orders_.end())
+                throw std::logic_error("No matching buy order for a long trade");
+        } else {
+            auto sell_match = std::find_if(sell_orders_.begin(), sell_orders_.end(), [order](const auto &it) {
+                return order == it.second;
+            });
+            if (sell_match == sell_orders_.end())
+                throw std::logic_error("No matching sell order for a short trade");
+        }
+    }
     trade_orders_[order.id] = order;
-    net_pos_ = std::accumulate(trade_orders_.cbegin(), trade_orders_.cend(), 0, SUM_FUNC);
+    update_trade();
+    if (buy_side_ >= max_buy || sell_side_ >= max_sell) {
+        trade_orders_.erase(order.id);
+        update_trade();
+        throw std::logic_error("Exceeded max buy or sell quantity threshold");
+    }
 }
 
 bool FinancialInstrument::delete_order(uint64_t id)
@@ -37,14 +65,12 @@ bool FinancialInstrument::delete_order(uint64_t id)
         update_buy();
         return true;
     }
-
     auto sell_order = sell_orders_.find(id);
     if (sell_order != sell_orders_.end()) {
         sell_orders_.erase(sell_order);
         update_sell();
         return true;
     }
-
     return false;
 }
 
@@ -52,24 +78,28 @@ bool FinancialInstrument::modify_order(uint64_t id, uint64_t quantity, uint64_t 
 {
     auto buy_order = buy_orders_.find(id);
     if (buy_order != buy_orders_.end()) {
-        auto dq = quantity - buy_orders_[id].quantity;
-        if (dq + buy_side_ >= max_buy)
-            throw std::logic_error("Exceeded max buy quantity threshold");
+        auto prev_quantity = buy_orders_[id].quantity;
         buy_orders_[id].quantity = quantity;
         update_buy();
+        if (buy_side_ >= max_buy) {
+            buy_orders_[id].quantity = prev_quantity;
+            update_buy();
+            throw std::logic_error("Exceeded max buy quantity threshold");
+        }
         return true;
     }
-
     auto sell_order = sell_orders_.find(id);
     if (sell_order != sell_orders_.end()) {
-        auto dq = quantity - sell_orders_[id].quantity;
-        if (dq + sell_side_ >= max_sell)
-            throw std::logic_error("Exceeded max sell quantity threshold");
+        auto prev_quantity = sell_orders_[id].quantity;
         sell_orders_[id].quantity = quantity;
         update_sell();
+        if (sell_side_ >= max_sell) {
+            sell_orders_[id].quantity = prev_quantity;
+            update_sell();
+            throw std::logic_error("Exceeded max sell quantity threshold");
+        }
         return true;
     }
-
     return false;
 }
 
@@ -88,5 +118,6 @@ void FinancialInstrument::update_sell()
 void FinancialInstrument::update_trade()
 {
     net_pos_ = std::accumulate(trade_orders_.cbegin(), trade_orders_.cend(), 0, SUM_FUNC);
+    buy_side_ = std::max(buy_qty_, net_pos_ + buy_qty_);
+    sell_side_ = std::max(sell_qty_, sell_qty_ - net_pos_);
 }
-

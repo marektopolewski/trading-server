@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <netinet/in.h>
 #include <variant>
-#include <iostream>
 
 namespace
 {
@@ -90,6 +89,17 @@ Message Server::parse(const char * data)
     case Messages::DeleteOrder::MESSAGE_TYPE:
         payload = Messages::DeleteOrder{};
         break;
+    case Messages::ModifyOrderQuantity::MESSAGE_TYPE:
+        payload = Messages::ModifyOrderQuantity{};
+        break;
+    case Messages::Trade::MESSAGE_TYPE:
+        payload = Messages::Trade{};
+        break;
+    case Messages::OrderResponse::MESSAGE_TYPE:
+        payload = Messages::OrderResponse{};
+        break;
+    default:
+        throw std::runtime_error("Unsupported message type.");
     }
     memcpy(&payload, &data[header_size], header.payloadSize);
 

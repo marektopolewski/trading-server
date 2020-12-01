@@ -36,6 +36,15 @@ public:
         return message;
     }
 
+    Message makeTradeOrder(uint64_t listingId, uint64_t tradeId, uint64_t tradeQuantity, uint64_t tradePrice) {
+        auto message = Message{};
+        message.header = makeHeader();
+        message.header.payloadSize = sizeof(Messages::Trade);
+        message.payload = Messages::Trade{ Messages::Trade::MESSAGE_TYPE, listingId, tradeId,
+                                           tradeQuantity, tradePrice };
+        return message;
+    }
+
     Messages::Header makeHeader() {
         using namespace std::chrono;
         auto ts = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
@@ -171,6 +180,60 @@ TEST(orderstore, modify_order)
     current_qty = store.instruments().find(listingId)->second.sells().find(order_id_2)->second.quantity;
     ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
     ASSERT_EQ(current_qty, order_qty_1);
+}
 
+TEST(orderstore, trade_long) {
+    auto store = Fixture();
+    uint64_t listingId = 1;
+    uint64_t orderId = 12;
+    uint64_t orderQuantity = 5;
+    uint64_t orderPrice = 120000;
+    char side = 'B';
+    store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
 
+    auto trade_id = 1;
+    auto response = store.consume(store.makeTradeOrder(listingId, trade_id, orderQuantity, orderPrice));
+    ASSERT_EQ(response, OrderStore::OrderResponse::ACCEPT);
+    auto trade = store.instruments().find(listingId)->second.trades().find(trade_id)->second;
+    ASSERT_EQ(trade.id, trade_id);
+    ASSERT_EQ(trade.quantity, orderQuantity);
+    ASSERT_EQ(trade.price, orderPrice);
+}
+
+TEST(orderstore, trade_long_max_exceeded){
+    auto store = Fixture();
+    uint64_t listingId = 1;
+    uint64_t orderId = 12;
+    uint64_t orderQuantity = static_cast<int>(Fixture::MAX_BUY / 2) + 1;
+    uint64_t orderPrice = 120000;
+    char side = 'B';
+    store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
+
+    auto trade_id = 1;
+    auto response = store.consume(store.makeTradeOrder(listingId, trade_id, orderQuantity, orderPrice));
+    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
+    ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
+}
+
+TEST(orderstore, DISABLED_trade_mismatch)
+{
+    auto store = Fixture();
+    uint64_t listingId = 1;
+    uint64_t orderId = 12;
+    uint64_t orderQuantity = 5;
+    uint64_t orderPrice = 120000;
+    char side = 'B';
+    store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
+
+    // trade that doesnt match quantity
+    auto trade_id_1 = 1;
+    auto response = store.consume(store.makeTradeOrder(listingId, trade_id_1, orderQuantity - 1, orderPrice));
+    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
+    ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
+
+    // trade that doesnt match price
+    auto trade_id_2 = 2;
+    response = store.consume(store.makeTradeOrder(listingId, trade_id_2, orderQuantity, orderPrice + 1));
+    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
+    ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
 }

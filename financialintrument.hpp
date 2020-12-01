@@ -14,15 +14,12 @@ public:
         uint64_t quantity;
         uint64_t price;
     };
-    void add_buy(Order && order);
-    void add_sell(Order && order);
-    void add_trade(Order && order);
+    void add_buy(Order && order, uint64_t max_buy);
+    void add_sell(Order && order, uint64_t max_sell);
+    void add_trade(Order && order, uint64_t max_buy, uint64_t max_sell);
 
     bool delete_order(uint64_t id);
     bool modify_order(uint64_t id, uint64_t quantity, uint64_t max_buy, uint64_t max_sell);
-
-    int buy_side() const { return buy_side_; }
-    int sell_side() const { return sell_side_; }
 
     using OrderMap = std::unordered_map<uint64_t, Order>;
     const OrderMap & trades() { return trade_orders_; }
@@ -43,7 +40,15 @@ private:
     OrderMap trade_orders_;
     OrderMap buy_orders_;
     OrderMap sell_orders_;
+
+    bool strict_ = false; // Defines if a trade must be matched with a buy/sell order. Intuitively, a long trade should
+                          // have a corresponding buy order, while a short trade a sell order. The specification does
+                          // not explicitly place such a constraint and neither is it present in the example, hence,
+                          // this mode is disabled by default. See the `orderstore.DISABLED_trade_mismatch` test.
 };
 
+inline bool operator==(const FinancialInstrument::Order & lhs, const FinancialInstrument::Order & rhs) {
+    return lhs.quantity == rhs.quantity && lhs.price == rhs.price;
+}
 
 #endif //FINANCIALINTRUMENT_HPP

@@ -28,6 +28,7 @@ private:
     OrderResponse handle_add(Messages::NewOrder && payload);
     OrderResponse handle_delete(Messages::DeleteOrder && payload);
     OrderResponse handle_modify(Messages::ModifyOrderQuantity && payload);
+    OrderResponse handle_trade(Messages::Trade && payload);
 
     IntrumentMap instruments_;
     int max_buy_;
