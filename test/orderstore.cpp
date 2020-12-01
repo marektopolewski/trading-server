@@ -1,4 +1,4 @@
-#include "../orderstore.hpp"
+#include "../server/orderstore.hpp"
 
 #include <chrono>
 #include <gtest/gtest.h>
@@ -59,6 +59,7 @@ private:
 };
 
 using namespace testing;
+using OrderStatus = Messages::OrderResponse::Status;
 
 TEST(orderstore, sanity_check)
 {
@@ -76,7 +77,7 @@ TEST(orderstore, new_order)
     char side = 'B';
 
     auto response = store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
-    ASSERT_EQ(response, OrderStore::OrderResponse::ACCEPT);
+    ASSERT_EQ(response.status, OrderStatus::ACCEPTED);
 
     auto instrument = store.instruments().find(listingId);
     ASSERT_NE(instrument, store.instruments().end()) << "Instrument present in the store";
@@ -100,7 +101,7 @@ TEST(orderstore, new_order_max_exceeded)
     char side = 'S';
 
     auto response = store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
-    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
+    ASSERT_EQ(response.status, OrderStatus::REJECTED);
     ASSERT_TRUE(store.instruments().find(listingId)->second.sells().empty());
 }
 
@@ -125,13 +126,13 @@ TEST(orderstore, delete_order)
 
     // check if the correct one is persisted
     auto response = store.consume(store.makeDeleteOrder(order_id_2));
-    ASSERT_EQ(response, OrderStore::OrderResponse::ACCEPT);
+    ASSERT_EQ(response.status, OrderStatus::ACCEPTED);
     instrument = store.instruments().find(listingId);
     ASSERT_FALSE(instrument->second.sells().empty());
 
     // check that all orders were removed
     response = store.consume(store.makeDeleteOrder(order_id_1));
-    ASSERT_EQ(response, OrderStore::OrderResponse::ACCEPT);
+    ASSERT_EQ(response.status, OrderStatus::ACCEPTED);
     instrument = store.instruments().find(listingId);
     ASSERT_TRUE(instrument->second.sells().empty());
 }
@@ -147,7 +148,7 @@ TEST(orderstore, delete_nonexisitent_order)
 
     store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
     auto response = store.consume(store.makeDeleteOrder(orderId + 1));
-    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
+    ASSERT_EQ(response.status, OrderStatus::REJECTED);
 
     auto instrument = store.instruments().find(listingId);
     ASSERT_FALSE(instrument->second.buys().empty());
@@ -171,14 +172,14 @@ TEST(orderstore, modify_order)
     auto order_qty_1 = static_cast<int>(Fixture::MAX_SELL / 2) - 1;
     auto response = store.consume(store.makeModifyOrder(order_id_2, order_qty_1));
     auto current_qty = store.instruments().find(listingId)->second.sells().find(order_id_2)->second.quantity;
-    ASSERT_EQ(response, OrderStore::OrderResponse::ACCEPT);
+    ASSERT_EQ(response.status, OrderStatus::ACCEPTED);
     ASSERT_EQ(current_qty, order_qty_1);
 
     // check that exceeding threshold does not affect the store state
     auto order_qty_2 = static_cast<int>(Fixture::MAX_SELL / 2) + 1;
     response = store.consume(store.makeModifyOrder(order_id_2, order_qty_2));
     current_qty = store.instruments().find(listingId)->second.sells().find(order_id_2)->second.quantity;
-    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
+    ASSERT_EQ(response.status, OrderStatus::REJECTED);
     ASSERT_EQ(current_qty, order_qty_1);
 }
 
@@ -193,7 +194,7 @@ TEST(orderstore, trade_long) {
 
     auto trade_id = 1;
     auto response = store.consume(store.makeTradeOrder(listingId, trade_id, orderQuantity, orderPrice));
-    ASSERT_EQ(response, OrderStore::OrderResponse::ACCEPT);
+    ASSERT_EQ(response.status, OrderStatus::ACCEPTED);
     auto trade = store.instruments().find(listingId)->second.trades().find(trade_id)->second;
     ASSERT_EQ(trade.id, trade_id);
     ASSERT_EQ(trade.quantity, orderQuantity);
@@ -211,7 +212,7 @@ TEST(orderstore, trade_long_max_exceeded){
 
     auto trade_id = 1;
     auto response = store.consume(store.makeTradeOrder(listingId, trade_id, orderQuantity, orderPrice));
-    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
+    ASSERT_EQ(response.status, OrderStatus::REJECTED);
     ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
 }
 
@@ -228,12 +229,12 @@ TEST(orderstore, DISABLED_trade_mismatch)
     // trade that doesnt match quantity
     auto trade_id_1 = 1;
     auto response = store.consume(store.makeTradeOrder(listingId, trade_id_1, orderQuantity - 1, orderPrice));
-    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
+    ASSERT_EQ(response.status, OrderStatus::REJECTED);
     ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
 
     // trade that doesnt match price
     auto trade_id_2 = 2;
     response = store.consume(store.makeTradeOrder(listingId, trade_id_2, orderQuantity, orderPrice + 1));
-    ASSERT_EQ(response, OrderStore::OrderResponse::REJECT);
+    ASSERT_EQ(response.status, OrderStatus::REJECTED);
     ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
 }

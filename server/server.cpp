@@ -1,9 +1,10 @@
 #include "server.hpp"
 
-#include <unistd.h>
-#include <cstdio>
+#include <chrono>
 #include <cstdlib>
+#include <cstdio>
 #include <netinet/in.h>
+#include <unistd.h>
 #include <variant>
 
 namespace
@@ -13,6 +14,11 @@ void make_local_address(struct sockaddr_in * addr, uint16_t port)
     addr->sin_family = AF_INET; // IPv4
     addr->sin_port = htons(port); // port in net-byte order
     addr->sin_addr.s_addr = INADDR_ANY; // bind to all interfaces
+}
+
+uint64_t timestamp() {
+    using namespace std::chrono;
+    return duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 }
 } // unnamed namespace
 
@@ -54,57 +60,25 @@ Server::Server()
         auto bytes_received = read(client_socket_, buffer, BUFFER_SIZE);
         if (bytes_received == 0)
             break;
-
-        auto msg = "";
         if (strlen(buffer) == 0)
-            msg = "404: No data";
-        else {
-            auto message = parse(buffer);
-            orderStore_.consume(std::move(message));
-            msg = "200: OK";
-        }
-        send(client_socket_, msg, sizeof(msg), 0);
+            continue;
+
+        auto message = parser_.decode(buffer);
+        auto response = orderStore_.consume(std::move(message));
+        if (response.no_response)
+            continue;
+
+        auto msg = Message{};
+        msg.header = {PROTOCOL_VERSION, sizeof(Messages::OrderResponse), sequence_number_++, timestamp()};
+        msg.payload = Messages::OrderResponse{ Messages::OrderResponse::MESSAGE_TYPE,
+                                               response.order_id, response.status };
+        send(client_socket_, &msg, sizeof(msg), 0);
     }
 }
 
 Server::~Server()
 {
     close(client_socket_);
-}
-
-Message Server::parse(const char * data)
-{
-    size_t header_size = 16;
-    Messages::Header header{};
-    memcpy(&header, &data[0], header_size);
-
-    uint16_t messageType;
-    memcpy(&messageType, &data[header_size], 2);
-
-    Messages::Payload payload{};
-    switch (messageType) {
-    case Messages::NewOrder::MESSAGE_TYPE:
-        payload = Messages::NewOrder{};
-        break;
-    case Messages::DeleteOrder::MESSAGE_TYPE:
-        payload = Messages::DeleteOrder{};
-        break;
-    case Messages::ModifyOrderQuantity::MESSAGE_TYPE:
-        payload = Messages::ModifyOrderQuantity{};
-        break;
-    case Messages::Trade::MESSAGE_TYPE:
-        payload = Messages::Trade{};
-        break;
-    case Messages::OrderResponse::MESSAGE_TYPE:
-        payload = Messages::OrderResponse{};
-        break;
-    default:
-        throw std::runtime_error("Unsupported message type.");
-    }
-    memcpy(&payload, &data[header_size], header.payloadSize);
-
-    auto message = Message{header, payload};
-    return message;
 }
 
 void Server::start()

@@ -1,7 +1,7 @@
 #ifndef FINANCIALINTRUMENT_HPP
 #define FINANCIALINTRUMENT_HPP
 
-#include "messages.hpp"
+#include "../messages.hpp"
 
 #include <unordered_map>
 

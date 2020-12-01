@@ -1,7 +1,8 @@
 #include "orderstore.hpp"
 
-#include <iostream>
 #include <variant>
+
+using OrderStatus = Messages::OrderResponse::Status;
 
 OrderStore::OrderStore(int max_buy, int max_sell)
     : max_buy_(max_buy)
@@ -13,13 +14,9 @@ OrderStore::OrderStore(int max_buy, int max_sell)
 template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
 template<class... Ts> overload(Ts...) -> overload<Ts...>;
 
-auto OrderStore::consume(Message && message) -> OrderResponse
+auto OrderStore::consume(Message && message) -> Response
 {
-    if (message.header.version != PROTOCOL_VERSION) {
-        std::cerr << "Invalid protocol version, message will be ignored\n";
-        return OrderResponse::NA;
-    }
-    auto response = OrderResponse::NA;
+    auto response = Response{};
     std::visit(overload{
         [&](Messages::NewOrder payload) { response = handle_add(std::move(payload)); },
         [&](Messages::DeleteOrder payload) { response = handle_delete(std::move(payload)); },
@@ -31,7 +28,7 @@ auto OrderStore::consume(Message && message) -> OrderResponse
     return response;
 }
 
-auto OrderStore::handle_add(Messages::NewOrder && payload) -> OrderResponse
+auto OrderStore::handle_add(Messages::NewOrder && payload) -> Response
 {
     auto & instrument = instruments_[payload.listingId];
     try {
@@ -39,47 +36,47 @@ auto OrderStore::handle_add(Messages::NewOrder && payload) -> OrderResponse
             instrument.add_buy({payload.orderId, payload.orderQuantity, payload.orderPrice}, max_buy_);
         else if (payload.side == 'S')
             instrument.add_sell({payload.orderId, payload.orderQuantity, payload.orderPrice}, max_sell_);
-        return OrderResponse::ACCEPT;
+        return { OrderStatus::ACCEPTED, payload.orderId };
     }
     catch (const std::logic_error &) { /* threshold exceeded */ }
-    return OrderResponse::REJECT;
+    return { OrderStatus::REJECTED, payload.orderId };
 }
 
-auto OrderStore::handle_delete(Messages::DeleteOrder && payload) -> OrderResponse
+auto OrderStore::handle_delete(Messages::DeleteOrder && payload) -> Response
 {
     try {
         for (auto & instrument : instruments_) {
             if (instrument.second.delete_order(payload.orderId))
-                return OrderResponse::ACCEPT;
+                return { OrderStatus::ACCEPTED, payload.orderId };
         }
     }
     catch (const std::logic_error &) { /* threshold exceeded */ }
-    return OrderResponse::REJECT;
+    return { OrderStatus::REJECTED, payload.orderId };
 }
 
-auto OrderStore::handle_modify(Messages::ModifyOrderQuantity && payload) -> OrderResponse
+auto OrderStore::handle_modify(Messages::ModifyOrderQuantity && payload) -> Response
 {
     if (payload.newQuantity == 0)
-        return OrderResponse::REJECT;
+        return { OrderStatus::REJECTED, payload.orderId };
     try {
         for (auto & instrument : instruments_) {
             if (instrument.second.modify_order(payload.orderId, payload.newQuantity, max_buy_, max_sell_))
-                return OrderResponse::ACCEPT;
+                return { OrderStatus::ACCEPTED, payload.orderId };
         }
     }
     catch (const std::logic_error &) { /* threshold exceeded */ }
-    return OrderResponse::REJECT;
+    return { OrderStatus::REJECTED, payload.orderId };
 }
 
-auto OrderStore::handle_trade(Messages::Trade && payload) -> OrderResponse
+auto OrderStore::handle_trade(Messages::Trade && payload) -> Response
 {
     if (payload.tradeQuantity == 0 || payload.tradePrice == 0)
-        return OrderResponse::REJECT;
+        return { OrderStatus::REJECTED, payload.tradeId };
     auto & instrument = instruments_[payload.listingId];
     try {
         instrument.add_trade({payload.tradeId, payload.tradeQuantity, payload.tradePrice}, max_buy_, max_sell_);
-        return OrderResponse::ACCEPT;
+        return { OrderStatus::ACCEPTED, payload.tradeId };
     }
     catch (const std::logic_error &) { /* threshold exceeded or no matching trade found */ }
-    return OrderResponse::REJECT;
+    return { OrderStatus::REJECTED, payload.tradeId };
 }

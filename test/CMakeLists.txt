@@ -33,6 +33,6 @@ add_executable(test
         financialinstrument.cpp
         orderstore.cpp
 )
-target_link_libraries(test libflow gmock_main)
+target_link_libraries(test libserver gmock_main)
 
 gtest_discover_tests(test)
