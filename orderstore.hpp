@@ -18,11 +18,14 @@ public:
     OrderStore(int max_buy, int max_sell);
     OrderResponse consume(Message && message);
 
+protected:
+    using IntrumentMap = std::unordered_map<uint64_t, FinancialInstrument>;
+    IntrumentMap & test_instruments() { return instruments_; }
+
 private:
     static const uint8_t PROTOCOL_VERSION = 1;
-    void test_print_instruments();
 
-    std::unordered_map<uint64_t, FinancialInstrument> instruments_;
+    IntrumentMap instruments_;
     int max_buy_;
     int max_sell_;
 };
