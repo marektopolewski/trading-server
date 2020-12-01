@@ -11,7 +11,7 @@ public:
     struct Order
     {
         uint64_t id;
-        uint64_t quantity;
+        int64_t quantity;
         uint64_t price;
     };
     void add_buy(Order && order, uint64_t max_buy);
@@ -31,24 +31,24 @@ private:
     void update_sell();
     void update_trade();
 
-    int net_pos_;
-    int buy_qty_;
-    int sell_qty_;
-    int buy_side_;
-    int sell_side_;
+    int64_t net_pos_;
+    int64_t buy_qty_;
+    int64_t sell_qty_;
+    int64_t buy_side_;
+    int64_t sell_side_;
 
     OrderMap trade_orders_;
     OrderMap buy_orders_;
     OrderMap sell_orders_;
 
-    bool strict_ = false; // Defines if a trade must be matched with a buy/sell order. Intuitively, a long trade should
-                          // have a corresponding buy order, while a short trade a sell order. The specification does
-                          // not explicitly place such a constraint and neither is it present in the example, hence,
-                          // this mode is disabled by default. See the `orderstore.DISABLED_trade_mismatch` test.
+    bool inverted_ = false; // Defines which order (buy or sell) a trade should be matched to. Intuitively, a long trade
+                            // should have a corresponding buy order, while a short trade a sell order. The spec does
+                            // not explicitly place such a constraint but the example indicates the opposite, hence,
+                            // this mode is disabled by default meaning: long->sell, short->buy.
 };
 
 inline bool operator==(const FinancialInstrument::Order & lhs, const FinancialInstrument::Order & rhs) {
-    return lhs.quantity == rhs.quantity && lhs.price == rhs.price;
+    return lhs.id == rhs.id && lhs.quantity == rhs.quantity && lhs.price == rhs.price;
 }
 
 #endif //FINANCIALINTRUMENT_HPP

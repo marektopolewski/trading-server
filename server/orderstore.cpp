@@ -32,10 +32,11 @@ auto OrderStore::handle_add(Messages::NewOrder && payload) -> Response
 {
     auto & instrument = instruments_[payload.listingId];
     try {
+        auto signed_quantity = static_cast<int64_t>(payload.orderQuantity);
         if (payload.side == 'B')
-            instrument.add_buy({payload.orderId, payload.orderQuantity, payload.orderPrice}, max_buy_);
+            instrument.add_buy({payload.orderId, signed_quantity, payload.orderPrice}, max_buy_);
         else if (payload.side == 'S')
-            instrument.add_sell({payload.orderId, payload.orderQuantity, payload.orderPrice}, max_sell_);
+            instrument.add_sell({payload.orderId, signed_quantity, payload.orderPrice}, max_sell_);
         return { OrderStatus::ACCEPTED, payload.orderId };
     }
     catch (const std::logic_error &) { /* threshold exceeded */ }
@@ -74,7 +75,8 @@ auto OrderStore::handle_trade(Messages::Trade && payload) -> Response
         return { OrderStatus::REJECTED, payload.tradeId };
     auto & instrument = instruments_[payload.listingId];
     try {
-        instrument.add_trade({payload.tradeId, payload.tradeQuantity, payload.tradePrice}, max_buy_, max_sell_);
+        auto signed_quantity = static_cast<int64_t>(payload.tradeQuantity);
+        instrument.add_trade({payload.tradeId, signed_quantity, payload.tradePrice}, max_buy_, max_sell_);
         return { OrderStatus::ACCEPTED, payload.tradeId };
     }
     catch (const std::logic_error &) { /* threshold exceeded or no matching trade found */ }

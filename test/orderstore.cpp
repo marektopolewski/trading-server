@@ -189,10 +189,10 @@ TEST(orderstore, trade_long) {
     uint64_t orderId = 12;
     uint64_t orderQuantity = 5;
     uint64_t orderPrice = 120000;
-    char side = 'B';
+    char side = 'S';
     store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
 
-    auto trade_id = 1;
+    auto trade_id = orderId;
     auto response = store.consume(store.makeTradeOrder(listingId, trade_id, orderQuantity, orderPrice));
     ASSERT_EQ(response.status, OrderStatus::ACCEPTED);
     auto trade = store.instruments().find(listingId)->second.trades().find(trade_id)->second;
@@ -201,22 +201,26 @@ TEST(orderstore, trade_long) {
     ASSERT_EQ(trade.price, orderPrice);
 }
 
-TEST(orderstore, trade_long_max_exceeded){
+TEST(orderstore, trade_long_max_exceeded)
+{
     auto store = Fixture();
     uint64_t listingId = 1;
     uint64_t orderId = 12;
     uint64_t orderQuantity = static_cast<int>(Fixture::MAX_BUY / 2) + 1;
     uint64_t orderPrice = 120000;
-    char side = 'B';
+    char side = 'S';
     store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
 
-    auto trade_id = 1;
+    side = 'B';
+    store.consume(store.makeNewOrder(listingId, orderId + 1, orderQuantity, orderPrice, side));
+
+    auto trade_id = orderId;
     auto response = store.consume(store.makeTradeOrder(listingId, trade_id, orderQuantity, orderPrice));
     ASSERT_EQ(response.status, OrderStatus::REJECTED);
     ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
 }
 
-TEST(orderstore, DISABLED_trade_mismatch)
+TEST(orderstore, trade_short)
 {
     auto store = Fixture();
     uint64_t listingId = 1;
@@ -226,15 +230,59 @@ TEST(orderstore, DISABLED_trade_mismatch)
     char side = 'B';
     store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
 
+    auto trade_id = orderId;
+    auto response = store.consume(store.makeTradeOrder(listingId, trade_id, orderQuantity, orderPrice));
+    ASSERT_EQ(response.status, OrderStatus::ACCEPTED);
+    auto trade = store.instruments().find(listingId)->second.trades().find(trade_id)->second;
+    ASSERT_EQ(trade.id, trade_id);
+    ASSERT_EQ(trade.quantity, -orderQuantity);
+    ASSERT_EQ(trade.price, orderPrice);
+}
+
+TEST(orderstore, trade_short_max_exceeded)
+{
+    auto store = Fixture();
+    uint64_t listingId = 1;
+    uint64_t orderId = 12;
+    uint64_t orderQuantity = static_cast<int>(Fixture::MAX_SELL / 2) + 1;
+    uint64_t orderPrice = 120000;
+    char side = 'B';
+    store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
+
+    side = 'S';
+    store.consume(store.makeNewOrder(listingId, orderId + 1, orderQuantity, orderPrice, side));
+
+    auto trade_id = orderId;
+    auto response = store.consume(store.makeTradeOrder(listingId, trade_id, orderQuantity, orderPrice));
+    ASSERT_EQ(response.status, OrderStatus::REJECTED);
+    ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
+}
+
+TEST(orderstore, trade_mismatch)
+{
+    auto store = Fixture();
+    uint64_t listingId = 1;
+    uint64_t orderId = 12;
+    uint64_t orderQuantity = 5;
+    uint64_t orderPrice = 120000;
+    char side = 'S';
+    store.consume(store.makeNewOrder(listingId, orderId, orderQuantity, orderPrice, side));
+
     // trade that doesnt match quantity
-    auto trade_id_1 = 1;
+    auto trade_id_1 = orderId;
     auto response = store.consume(store.makeTradeOrder(listingId, trade_id_1, orderQuantity - 1, orderPrice));
     ASSERT_EQ(response.status, OrderStatus::REJECTED);
     ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
 
     // trade that doesnt match price
-    auto trade_id_2 = 2;
+    auto trade_id_2 = orderId;
     response = store.consume(store.makeTradeOrder(listingId, trade_id_2, orderQuantity, orderPrice + 1));
+    ASSERT_EQ(response.status, OrderStatus::REJECTED);
+    ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
+
+    // trade that doesnt match order id
+    auto trade_id_3 = orderId + 1;
+    response = store.consume(store.makeTradeOrder(listingId, trade_id_3, orderQuantity, orderPrice));
     ASSERT_EQ(response.status, OrderStatus::REJECTED);
     ASSERT_TRUE(store.instruments().find(listingId)->second.trades().empty());
 }

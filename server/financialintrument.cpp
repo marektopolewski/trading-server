@@ -4,7 +4,7 @@
 
 namespace
 {
-    auto SUM_FUNC = [](const int acc, const std::pair<uint64_t, FinancialInstrument::Order> & it) {
+    auto SUM_FUNC = [](const int64_t acc, const std::pair<uint64_t, FinancialInstrument::Order> & it) {
         return acc + it.second.quantity;
     };
 } // unnamed namespace
@@ -33,20 +33,18 @@ void FinancialInstrument::add_sell(Order && order, uint64_t max_sell)
 
 void FinancialInstrument::add_trade(Order && order, uint64_t max_buy, uint64_t max_sell)
 {
-    if (strict_) {
-        if (order.quantity > 0) {
-            auto buy_match = std::find_if(buy_orders_.begin(), buy_orders_.end(), [order](const auto &it) {
-                return order == it.second;
-            });
-            if (buy_match == buy_orders_.end())
-                throw std::logic_error("No matching buy order for a long trade");
-        } else {
-            auto sell_match = std::find_if(sell_orders_.begin(), sell_orders_.end(), [order](const auto &it) {
-                return order == it.second;
-            });
-            if (sell_match == sell_orders_.end())
-                throw std::logic_error("No matching sell order for a short trade");
-        }
+    // Implicitly find the sign of the trade (negative for short, positive for long) by finding a corresponding
+    // buy or sell order.
+    auto buy_match = buy_orders_.find(order.id);
+    if (buy_match != buy_orders_.end() && order == buy_match->second) {
+        order.quantity = (inverted_ ? 1 : -1) * order.quantity;
+    }
+    else {
+        auto sell_match = sell_orders_.find(order.id);
+        if (sell_match != sell_orders_.end() && order == sell_match->second)
+            order.quantity = (inverted_ ? -1 : 1) * order.quantity;
+        else
+            throw std::logic_error("No buy or sell order matching the trade");
     }
     trade_orders_[order.id] = order;
     update_trade();
