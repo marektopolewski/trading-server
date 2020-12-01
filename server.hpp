@@ -12,10 +12,9 @@ class Server
 public:
     Server();
     ~Server();
+    Message parse(const char * data);
     void start();
     void stop();
-
-    Message parse(const char & bin_data);
 
 private:
     static const uint16_t INTERNET_PROTOCOL = AF_INET; // IPv4

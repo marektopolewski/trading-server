@@ -7,43 +7,52 @@
 namespace Messages
 {
 
+struct Header
+{
+    uint16_t version; 
+    uint16_t payloadSize; 
+    uint32_t sequenceNumber; 
+    uint64_t timestamp; 
+} __attribute__ ((__packed__));
+static_assert(sizeof(Header) == 16, "The Header size is not correct");
+
 struct NewOrder
 {
     static constexpr uint16_t MESSAGE_TYPE = 1;
-    uint16_t messageType; // Message type of this message
-    uint64_t listingId; // Financial instrument id associated to this message
-    uint64_t orderId; // Order id used for further order changes
-    uint64_t orderQuantity; // Order quantity
-    uint64_t orderPrice; // Order price, the price contains 4 implicit decimals
-    char side; // The side of the order, 'B' for buy and 'S' for sell
+    uint16_t messageType; 
+    uint64_t listingId; 
+    uint64_t orderId; 
+    uint64_t orderQuantity; 
+    uint64_t orderPrice; 
+    char side; 
 } __attribute__ ((__packed__));
 static_assert(sizeof(NewOrder) == 35, "The NewOrder size is not correct");
 
 struct DeleteOrder
 {
     static constexpr uint16_t MESSAGE_TYPE = 2;
-    uint16_t messageType; // Message type of this message
-    uint64_t orderId; // Order id that refers to the original order id
+    uint16_t messageType; 
+    uint64_t orderId; 
 } __attribute__ ((__packed__));
 static_assert(sizeof(DeleteOrder) == 10, "The DeleteOrder size is not correct");
 
 struct ModifyOrderQuantity
 {
     static constexpr uint16_t MESSAGE_TYPE = 3;
-    uint16_t messageType; // Message type of this message
-    uint64_t orderId; // Order id that refers to the original order id
-    uint64_t newQuantity; // The new quantity
+    uint16_t messageType; 
+    uint64_t orderId; 
+    uint64_t newQuantity; 
 } __attribute__ ((__packed__));
 static_assert(sizeof(ModifyOrderQuantity) == 18, "The ModifyOrderQuantity size is not correct");
 
 struct Trade
 {
     static constexpr uint16_t MESSAGE_TYPE = 4;
-    uint16_t messageType; // Message type of this message
-    uint64_t listingId; // Financial instrument id associated to this message
-    uint64_t tradeId; // Order id that refers to the original order id
-    uint64_t tradeQuantity; // Trade quantity
-    uint64_t tradePrice; // Trade price, the price contains 4 implicit decimals
+    uint16_t messageType; 
+    uint64_t listingId; 
+    uint64_t tradeId; 
+    uint64_t tradeQuantity; 
+    uint64_t tradePrice; 
 } __attribute__ ((__packed__));
 static_assert(sizeof(Trade) == 34, "The Trade size is not correct");
 
@@ -55,21 +64,11 @@ struct OrderResponse
         ACCEPTED = 0,
         REJECTED = 1,
     };
-    uint16_t messageType; // Message type of this message
-    uint64_t orderId; // Order id that refers to the original order id
-    Status status; // Status of the order
+    uint16_t messageType; 
+    uint64_t orderId; 
+    Status status; 
 } __attribute__ ((__packed__));
 static_assert(sizeof(OrderResponse) == 12, "The OrderResponse size is not correct");
-
-struct Header
-{
-    uint16_t version; // Protocol version
-    uint16_t payloadSize; // Payload size in bytes
-    uint32_t sequenceNumber; // Sequence number for this package
-    uint64_t timestamp; // Timestamp, number of nanoseconds from Unix epoch.
-} __attribute__ ((__packed__));
-static_assert(sizeof(Header) == 16, "The Header size is not correct");
-
 
 using Payload = std::variant<Messages::NewOrder, Messages::DeleteOrder,Messages::Trade,
                              Messages::ModifyOrderQuantity, Messages::OrderResponse>;
@@ -81,4 +80,4 @@ struct Message
     Messages::Payload payload;
 };
 
-#endif // REPO_MESSAGES_HPP
+#endif 

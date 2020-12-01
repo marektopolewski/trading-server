@@ -32,27 +32,9 @@ Client::~Client()
     close(server_socket_);
 }
 
-void Client::sendMessage(const Message &)
+void Client::sendMessage(const Message & message)
 {
-    using namespace std::chrono;
-    auto ts = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
-    auto hdr = Messages::Header{
-            1,
-            35,
-            0,
-            static_cast<uint64_t>(ts)
-    };
-    auto pld = Messages::NewOrder{
-            Messages::NewOrder::MESSAGE_TYPE,
-            1,
-            2,
-            3,
-            4,
-            'B'
-    };
-    auto msg = Message{hdr, pld};
-    send(server_socket_, &msg, sizeof(msg), 0);
-
+    send(server_socket_, &message, sizeof(message), 0);
     char buffer[1024] = {0};
     read(server_socket_, buffer, 1024);
     std::cout << "Server response: \"" << buffer << "\"\n";
@@ -60,32 +42,43 @@ void Client::sendMessage(const Message &)
 
 int main()
 {
+    using namespace std::chrono;
     try {
         auto client = Client();
-
-        using namespace std::chrono;
-        auto ts = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
-        auto hdr = Messages::Header{
-            1,
-            35,
-            0,
-            static_cast<uint64_t>(ts)
-        };
-        auto pld = Messages::NewOrder{
-            Messages::NewOrder::MESSAGE_TYPE,
-            1,
-            2,
-            3,
-            4,
-            'B'
-        };
-        auto msg = Message{hdr, pld};
-
         for (int i = 0; i < 3; ++i) {
+            auto ts = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
+            auto hdr = Messages::Header{
+                    1,
+                    35,
+                    static_cast<uint32_t>(i),
+                    static_cast<uint64_t>(ts)
+            };
+            auto pld = Messages::NewOrder{
+                    Messages::NewOrder::MESSAGE_TYPE,
+                    1,
+                    static_cast<uint32_t>(i),
+                    7,
+                    3,
+                    'B'
+            };
+            auto msg = Message{hdr, pld};
             client.sendMessage(msg);
             std::cout << "Sleeping for 2s\n";
             sleep(2);
         }
+        auto ts = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
+        auto hdr = Messages::Header{
+                1,
+                10,
+                static_cast<uint32_t>(4),
+                static_cast<uint64_t>(ts)
+        };
+        auto pld = Messages::NewOrder{
+                Messages::DeleteOrder::MESSAGE_TYPE,
+                1
+        };
+        auto msg = Message{hdr, pld};
+        client.sendMessage(msg);
         sleep(5);
     }
     catch(const std::runtime_error & err) {

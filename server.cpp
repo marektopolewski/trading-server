@@ -18,6 +18,7 @@ void make_local_address(struct sockaddr_in * addr, uint16_t port)
 } // unnamed namespace
 
 Server::Server()
+    : orderStore_(20, 15)
 {
     auto conn_socket = socket(INTERNET_PROTOCOL, TRANSPORT_PROTOCOL, 0);
     if (conn_socket == -1)
@@ -59,10 +60,8 @@ Server::Server()
         if (strlen(buffer) == 0)
             msg = "404: No data";
         else {
-//            uint16_t messageType;
-//            memcpy(&messageType, &buffer[0], 2);
-            auto data = reinterpret_cast<Message*>(buffer);
-            orderStore_.consume(data);
+            auto message = parse(buffer);
+            orderStore_.consume(std::move(message));
             msg = "200: OK";
         }
         send(client_socket_, msg, sizeof(msg), 0);
@@ -72,6 +71,30 @@ Server::Server()
 Server::~Server()
 {
     close(client_socket_);
+}
+
+Message Server::parse(const char * data)
+{
+    size_t header_size = 16;
+    Messages::Header header{};
+    memcpy(&header, &data[0], header_size);
+
+    uint16_t messageType;
+    memcpy(&messageType, &data[header_size], 2);
+
+    Messages::Payload payload{};
+    switch (messageType) {
+    case Messages::NewOrder::MESSAGE_TYPE:
+        payload = Messages::NewOrder{};
+        break;
+    case Messages::DeleteOrder::MESSAGE_TYPE:
+        payload = Messages::DeleteOrder{};
+        break;
+    }
+    memcpy(&payload, &data[header_size], header.payloadSize);
+
+    auto message = Message{header, payload};
+    return message;
 }
 
 void Server::start()
