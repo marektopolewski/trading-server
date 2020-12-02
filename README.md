@@ -1,5 +1,8 @@
-Author: Marek Topolewski
-Email: marek.topolewski@gmail.com
+A simple C++-based application that models a risk trading server.
+
+The implementation consists of a server and a client.
+
+The communcation is via TCP sockets. It is bidrectional and one-to-many (one server, mutiple clients).
 
 To build:
 ```
