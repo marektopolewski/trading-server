@@ -4,7 +4,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <vector>
-#include <iostream>s
+#include <iostream>
 
 Client::Client()
 {
@@ -32,10 +32,11 @@ Client::~Client()
 void Client::sendMessage(const Message & message)
 {
     send(server_socket_, &message, sizeof(message), 0);
+    sleep(1);
+
     char buffer[BUFFER_SIZE] = {};
     read(server_socket_, buffer, BUFFER_SIZE);
     auto msg = parser_.decode(buffer);
-
     if (std::holds_alternative<Messages::OrderResponse>(msg.payload)) {
         auto response = std::get<Messages::OrderResponse>(msg.payload);
         auto status = response.status == Messages::OrderResponse::Status::ACCEPTED ? "ACCEPTED" : "REJECTED";

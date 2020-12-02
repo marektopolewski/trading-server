@@ -1,5 +1,8 @@
 #include "parser.hpp"
 
+#include <stdexcept>
+#include <cstring>
+
 Parser::Parser(uint16_t protocol_version)
     : protocol_version_(protocol_version)
 {
@@ -9,12 +12,12 @@ Message Parser::decode(const char * data)
 {
     size_t header_size = 16;
     Messages::Header header{};
-    memcpy(&header, &data[0], header_size);
+    std::memcpy(&header, &data[0], header_size);
     if (header.version != protocol_version_)
         throw std::runtime_error("Unsupported protocol version");
 
     uint16_t messageType;
-    memcpy(&messageType, &data[header_size], 2);
+    std::memcpy(&messageType, &data[header_size], 2);
 
     Messages::Payload payload{};
     switch (messageType) {
@@ -36,7 +39,7 @@ Message Parser::decode(const char * data)
         default:
             throw std::runtime_error("Unsupported message type");
     }
-    memcpy(&payload, &data[header_size], header.payloadSize);
+    std::memcpy(&payload, &data[header_size], header.payloadSize);
 
     auto message = Message{header, payload};
     return message;

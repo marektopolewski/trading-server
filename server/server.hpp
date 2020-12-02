@@ -7,14 +7,15 @@
 
 #include <sys/socket.h>
 #include <string>
+#include <unordered_map>
 
 class Server
 {
 public:
-    Server();
+    Server(uint64_t max_buy, uint64_t max_sell);
     ~Server();
+
     void start();
-    void stop();
 
 private:
     static const uint16_t INTERNET_PROTOCOL = AF_INET; // IPv4
@@ -22,14 +23,15 @@ private:
     static const uint16_t PORT_NUMBER = 1234;
     static const uint16_t PROTOCOL_VERSION = 1;
 
-    static const uint16_t BACKLOG_SIZE = 5;
+    static const uint16_t MAX_CONCURRENT_CLIENTS = 5;
     static const uint16_t BUFFER_SIZE = 64;
 
     Parser parser_{PROTOCOL_VERSION};
-    OrderStore orderStore_;
+    std::unordered_map<int, std::unique_ptr<OrderStore>> clients_;
+    uint64_t max_buy_;
+    uint64_t max_sell_;
 
-    bool active_ = false;
-    int client_socket_ = -1;
+    int socket_ = -1;
     uint32_t sequence_number_ = 0;
 };
 

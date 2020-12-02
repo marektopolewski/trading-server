@@ -5,7 +5,15 @@
 int main()
 {
     try {
-        auto server = Server();
+        std::string max_buy, max_sell;
+
+        std::cout << "Enter max buy threshold: ";
+        std::cin >> max_buy;
+
+        std::cout << "Enter max sell threshold: ";
+        std::cin >> max_sell;
+
+        auto server = Server(std::stoull(max_buy), std::stoull(max_sell));
         server.start();
     }
     catch(const std::runtime_error & err) {
